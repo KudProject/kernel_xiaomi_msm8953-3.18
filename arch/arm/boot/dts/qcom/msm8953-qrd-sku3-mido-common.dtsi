@@ -57,3 +57,16 @@
 };
 
 #include "mido/msm8953-mido.dtsi"
+
+&i2c_5 {
+	/delete-node/ nq@28;
+};
+
+&pm8953_gpios {
+	/delete-node/ gpio@c100;
+
+	gpio@c700 {
+		qcom,master-en = <0>;
+		status = "okay";
+	};
+};
