@@ -66,7 +66,10 @@ const char *ipa3_event_name[] = {
 	__stringify(ADD_VLAN_IFACE),
 	__stringify(DEL_VLAN_IFACE),
 	__stringify(ADD_L2TP_VLAN_MAPPING),
-	__stringify(DEL_L2TP_VLAN_MAPPING)
+	__stringify(DEL_L2TP_VLAN_MAPPING),
+	__stringify(IPA_QUOTA_REACH),
+	__stringify(IPA_SSR_BEFORE_SHUTDOWN),
+	__stringify(IPA_SSR_AFTER_POWERUP),
 };
 
 const char *ipa3_hdr_l2_type_name[] = {
@@ -358,7 +361,7 @@ static ssize_t ipa3_read_hdr(struct file *file, char __user *ubuf, size_t count,
 			link) {
 		nbytes = scnprintf(
 			dbg_buff,
-			IPA_MAX_MSG_LEN,
+			IPA_MAX_MSG_LEN - 1,
 			"name:%s len=%d ref=%d partial=%d type=%s ",
 			entry->name,
 			entry->hdr_len,
@@ -369,23 +372,23 @@ static ssize_t ipa3_read_hdr(struct file *file, char __user *ubuf, size_t count,
 		if (entry->is_hdr_proc_ctx) {
 			nbytes += scnprintf(
 				dbg_buff + nbytes,
-				IPA_MAX_MSG_LEN - nbytes,
+				IPA_MAX_MSG_LEN - 1 - nbytes,
 				"phys_base=0x%pa ",
 				&entry->phys_base);
 		} else {
 			nbytes += scnprintf(
 				dbg_buff + nbytes,
-				IPA_MAX_MSG_LEN - nbytes,
+				IPA_MAX_MSG_LEN - 1 - nbytes,
 				"ofst=%u ",
 				entry->offset_entry->offset >> 2);
 		}
 		for (i = 0; i < entry->hdr_len; i++) {
 			scnprintf(dbg_buff + nbytes + i * 2,
-				  IPA_MAX_MSG_LEN - nbytes - i * 2,
+				  IPA_MAX_MSG_LEN - 1 - nbytes - i * 2,
 				  "%02x", entry->hdr[i]);
 		}
 		scnprintf(dbg_buff + nbytes + entry->hdr_len * 2,
-			  IPA_MAX_MSG_LEN - nbytes - entry->hdr_len * 2,
+			  IPA_MAX_MSG_LEN - 1 - nbytes - entry->hdr_len * 2,
 			  "\n");
 		pr_err("%s", dbg_buff);
 	}
@@ -842,10 +845,11 @@ static ssize_t ipa3_read_flt(struct file *file, char __user *ubuf, size_t count,
 				eq = true;
 			} else {
 				rt_tbl = ipa3_id_find(entry->rule.rt_tbl_hdl);
-				if (rt_tbl)
-					rt_tbl_idx = rt_tbl->idx;
+				if (rt_tbl == NULL ||
+					rt_tbl->cookie != IPA_RT_TBL_COOKIE)
+					rt_tbl_idx =  ~0;
 				else
-					rt_tbl_idx = ~0;
+					rt_tbl_idx = rt_tbl->idx;
 				bitmap = entry->rule.attrib.attrib_mask;
 				eq = false;
 			}

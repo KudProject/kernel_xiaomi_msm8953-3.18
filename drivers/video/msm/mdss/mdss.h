@@ -265,6 +265,8 @@ struct mdss_smmu_ops {
 	void (*smmu_dsi_unmap_buffer)(dma_addr_t dma_addr, int domain,
 			unsigned long size, int dir);
 	void (*smmu_deinit)(struct mdss_data_type *mdata);
+	struct sg_table * (*smmu_sg_table_clone)(struct sg_table *orig_table,
+			gfp_t gfp_mask, bool padding);
 };
 
 struct mdss_data_type {
@@ -385,6 +387,8 @@ struct mdss_data_type {
 	u32 *vbif_rt_qos;
 	u32 *vbif_nrt_qos;
 	u32 npriority_lvl;
+	u32 rot_dwnscale_min;
+	u32 rot_dwnscale_max;
 
 	struct mult_factor ab_factor;
 	struct mult_factor ib_factor;

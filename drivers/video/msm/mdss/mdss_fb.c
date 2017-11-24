@@ -3174,7 +3174,7 @@ static int mdss_fb_pan_display_ex(struct fb_info *info,
 	if (var->yoffset > (info->var.yres_virtual - info->var.yres))
 		return -EINVAL;
 
-	ret = mdss_fb_wait_for_kickoff(mfd);
+	ret = mdss_fb_pan_idle(mfd);
 	if (ret) {
 		pr_err("wait_for_kick failed. rc=%d\n", ret);
 		return ret;
@@ -4469,11 +4469,22 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 	struct mdp_output_layer __user *output_layer_user;
 	struct mdp_frc_info *frc_info = NULL;
 	struct mdp_frc_info __user *frc_info_user;
+	struct msm_fb_data_type *mfd;
 
 	ret = copy_from_user(&commit, argp, sizeof(struct mdp_layer_commit));
 	if (ret) {
 		pr_err("%s:copy_from_user failed\n", __func__);
 		return ret;
+	}
+
+	mfd = (struct msm_fb_data_type *)info->par;
+	if (!mfd)
+		return -EINVAL;
+
+	if (mfd->panel_info->panel_dead) {
+		pr_debug("early commit return\n");
+		MDSS_XLOG(mfd->panel_info->panel_dead);
+		return 0;
 	}
 
 	output_layer_user = commit.commit_v1.output_layer;

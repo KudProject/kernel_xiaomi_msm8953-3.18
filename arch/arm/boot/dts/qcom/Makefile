@@ -167,7 +167,8 @@ dtb-$(CONFIG_ARCH_MDM9650) += mdm9650-sim.dtb \
 	mdm9650-v1.1-nand-ccard-v2.dtb \
 	mdm9650-v1.1-emmc-pcie-ep-mtp.dtb \
 	mdm9650-v1.1-nand-pcie-ep-mtp.dtb \
-	mdm9650-v1.1-nand-cv2x.dtb
+	mdm9650-v1.1-nand-cv2x.dtb \
+	mdm9650-v1.1-nand-rome-sdio-mtp.dtb
 
 dtb-$(CONFIG_ARCH_SDX20) += sdx20-emmc-cdp.dtb \
 	sdx20-emmc-mtp.dtb \
@@ -284,7 +285,8 @@ dtb-$(CONFIG_ARCH_SDM450) += sdm450-rcm.dtb \
 	sdm450-mtp.dtb \
 	sdm450-qrd.dtb \
 	sdm450-pmi8940-mtp.dtb \
-	sdm450-pmi8937-mtp.dtb
+	sdm450-pmi8937-mtp.dtb \
+	sdm450-iot-mtp.dtb
 endif
 
 dtb-$(CONFIG_ARCH_MDM9607) += mdm9607-rumi.dtb \

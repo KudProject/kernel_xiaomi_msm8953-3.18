@@ -35,6 +35,10 @@
 	qcom,sensor-id = <0 1 2 3 4>;
 };
 
+&mss_mem {
+	reg = <0x88000000 0x7300000>;
+};
+
 &soc {
 	/* SD card 2.95 V supply */
 	sdc_vreg: sdc_vreg {
@@ -88,6 +92,7 @@
 	ipa_hw: qcom,ipa@07B00000 {
 		qcom,ipa-hw-ver = <12>; /* IPA core version = IPAv3.5 */
 		/delete-property/qcom,use-rg10-limitation-mitigation;
+		qcom,throughput-threshold = <600 1200>; /* NOM TURBO */
 	};
 
 	qcom,ipa_fws {
@@ -353,6 +358,7 @@
 
 	qcom,pcie-phy-ver = <5>;
 	qcom,pcie-perst-enum;
+	qcom,pcie-mhi-a7-irq;
 	status = "disabled";
 };
 
@@ -386,12 +392,14 @@
 &mss {
 	/delete-property/qcom,qdsp6v61-1-1;
 	qcom,qdsp6v62-1-4;
+	/delete-property/interrupts;
 };
 
 &mhi_device {
 	interrupts = <0 119 0>;
 	interrupt-names = "mhi-device-inta";
 	qcom,mhi-ifc-id = <0x030317cb>;
+	qcom,mhi-interrupt;
 	status = "disabled";
 };
 

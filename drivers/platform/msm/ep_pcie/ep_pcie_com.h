@@ -43,6 +43,7 @@
 #define PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT      0x1A8
 #define PCIE20_PARF_Q2A_FLUSH          0x1AC
 #define PCIE20_PARF_LTSSM              0x1B0
+#define PCIE20_PARF_CFG_BITS           0x210
 #define PCIE20_PARF_LTR_MSI_EXIT_L1SS  0x214
 #define PCIE20_PARF_INT_ALL_STATUS     0x224
 #define PCIE20_PARF_INT_ALL_CLEAR      0x228
@@ -289,6 +290,7 @@ struct ep_pcie_dev_t {
 	u32                          link_speed;
 	bool                         active_config;
 	bool                         aggregated_irq;
+	bool                         mhi_a7_irq;
 	u32                          dbi_base_reg;
 	u32                          slv_space_reg;
 	u32                          phy_status_reg;

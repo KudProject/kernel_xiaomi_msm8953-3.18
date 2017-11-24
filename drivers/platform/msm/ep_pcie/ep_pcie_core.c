@@ -519,6 +519,9 @@ static void ep_pcie_core_init(struct ep_pcie_dev_t *dev, bool configured)
 	/* Set AUX power to be on */
 	ep_pcie_write_mask(dev->parf + PCIE20_PARF_SYS_CTRL, 0, BIT(4));
 
+	/* Request to exit from L1SS for MSI and LTR MSG */
+	ep_pcie_write_mask(dev->parf + PCIE20_PARF_CFG_BITS, 0, BIT(1));
+
 	EP_PCIE_DBG(dev,
 		"Initial: CLASS_CODE_REVISION_ID:0x%x; HDR_TYPE:0x%x\n",
 		readl_relaxed(dev->dm_core + PCIE20_CLASS_CODE_REVISION_ID),
@@ -600,9 +603,13 @@ static void ep_pcie_core_init(struct ep_pcie_dev_t *dev, bool configured)
 			BIT(EP_PCIE_INT_EVT_LINK_DOWN) |
 			BIT(EP_PCIE_INT_EVT_BME) |
 			BIT(EP_PCIE_INT_EVT_PM_TURNOFF) |
-			BIT(EP_PCIE_INT_EVT_MHI_A7) |
 			BIT(EP_PCIE_INT_EVT_DSTATE_CHANGE) |
 			BIT(EP_PCIE_INT_EVT_LINK_UP));
+		if (!dev->mhi_a7_irq)
+			ep_pcie_write_mask(dev->parf +
+				PCIE20_PARF_INT_ALL_MASK, 0,
+				BIT(EP_PCIE_INT_EVT_MHI_A7));
+
 		EP_PCIE_DBG(dev, "PCIe V%d: PCIE20_PARF_INT_ALL_MASK:0x%x\n",
 			dev->rev,
 			readl_relaxed(dev->parf + PCIE20_PARF_INT_ALL_MASK));
@@ -1050,7 +1057,6 @@ int ep_pcie_core_enable_endpoint(enum ep_pcie_options opt)
 		EP_PCIE_ERR(dev,
 			"PCIe V%d: request to turn on the power when link is already powered on.\n",
 			dev->rev);
-		ret = EP_PCIE_ERROR;
 		goto out;
 	}
 
@@ -1364,7 +1370,7 @@ int ep_pcie_core_mask_irq_event(enum ep_pcie_irq_event event,
 	spin_lock_irqsave(&dev->ext_lock, irqsave_flags);
 
 	if (dev->aggregated_irq) {
-		mask = readl_relaxed(dev->dm_core + PCIE20_PARF_INT_ALL_MASK);
+		mask = readl_relaxed(dev->parf + PCIE20_PARF_INT_ALL_MASK);
 		EP_PCIE_DUMP(dev,
 			"PCIe V%d: current PCIE20_PARF_INT_ALL_MASK:0x%x\n",
 			dev->rev, mask);
@@ -1377,7 +1383,7 @@ int ep_pcie_core_mask_irq_event(enum ep_pcie_irq_event event,
 		EP_PCIE_DUMP(dev,
 			"PCIe V%d: new PCIE20_PARF_INT_ALL_MASK:0x%x\n",
 			dev->rev,
-			readl_relaxed(dev->dm_core + PCIE20_PARF_INT_ALL_MASK));
+			readl_relaxed(dev->parf + PCIE20_PARF_INT_ALL_MASK));
 	} else {
 		EP_PCIE_ERR(dev,
 			"PCIe V%d: Client askes to %s IRQ event 0x%x when aggregated IRQ is not supported.\n",
@@ -2286,6 +2292,13 @@ static int ep_pcie_probe(struct platform_device *pdev)
 	EP_PCIE_DBG(&ep_pcie_dev,
 		"PCIe V%d: aggregated IRQ is %s enabled.\n",
 		ep_pcie_dev.rev, ep_pcie_dev.aggregated_irq ? "" : "not");
+
+	ep_pcie_dev.mhi_a7_irq =
+		of_property_read_bool((&pdev->dev)->of_node,
+				"qcom,pcie-mhi-a7-irq");
+	EP_PCIE_DBG(&ep_pcie_dev,
+		"PCIe V%d: Mhi a7 IRQ is %s enabled.\n",
+		ep_pcie_dev.rev, ep_pcie_dev.mhi_a7_irq ? "" : "not");
 
 	ep_pcie_dev.perst_enum = of_property_read_bool((&pdev->dev)->of_node,
 				"qcom,pcie-perst-enum");
