@@ -55,6 +55,13 @@ config CPU_FREQ_STAT_DETAILS
 
 	  If in doubt, say N.
 
+# MSM kernels will only boot with performance as the default CPU governor,
+# so don't let users choose default CPU governor other than performance
+# since Android's init script will change the CPU governor after boot to
+# the desired CPU governor.
+
+if !ARCH_MSM
+
 choice
 	prompt "Default CPUFreq governor"
 	default CPU_FREQ_DEFAULT_GOV_USERSPACE if ARM_SA1100_CPUFREQ || ARM_SA1110_CPUFREQ
@@ -130,6 +137,8 @@ config CPU_FREQ_DEFAULT_GOV_SCHED
 	  cpu frequency using CPU utilization estimates from the
 	  scheduler.
 endchoice
+
+endif # !ARCH_MSM
 
 config CPU_FREQ_GOV_PERFORMANCE
 	tristate "'performance' governor"

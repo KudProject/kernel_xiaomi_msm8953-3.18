@@ -496,7 +496,13 @@ void cpufreq_unregister_governor(struct cpufreq_governor *governor);
 #ifdef CONFIG_CPU_FREQ_GOV_PERFORMANCE
 extern struct cpufreq_governor cpufreq_gov_performance;
 #endif
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
+/*
+ * MSM kernels will only boot with performance as the default CPU governor,
+ * so don't let users choose default CPU governor other than performance
+ * since Android's init script will change the CPU governor after boot to
+ * the desired CPU governor.
+ */
+#if defined(CONFIG_ARCH_MSM) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE)
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_performance)
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE)
 extern struct cpufreq_governor cpufreq_gov_powersave;
