@@ -6985,6 +6985,11 @@ static int __iw_get_char_setnone(struct net_device *dev,
                    "%s: pAdapter is NULL!", __func__);
          return -EINVAL;
     }
+
+    if (WLAN_HDD_MONITOR == pAdapter->device_mode ||
+        WLAN_HDD_FTM == pAdapter->device_mode)
+        return ret;
+
     pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     ret = wlan_hdd_validate_context(pHddCtx);
     if (0 != ret)
@@ -10508,9 +10513,15 @@ int hdd_setBand(struct net_device *dev, u8 ui_band)
               * first and then the actual country.
               */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-             regulatory_hint_user("00", NL80211_USER_REG_HINT_USER);
+             if(curr_country[0] == '0' && curr_country[1] == '0')
+                     regulatory_hint_user("IN", NL80211_USER_REG_HINT_USER);
+             else
+                     regulatory_hint_user("OO", NL80211_USER_REG_HINT_USER);
 #else
-             regulatory_hint_user("00");
+             if(curr_country[0] == '0' && curr_country[1] == '0')
+                     regulatory_hint_user("IN");
+             else
+                     regulatory_hint_user("00");
 #endif
              wait_result = wait_for_completion_interruptible_timeout(
                                &pHddCtx->linux_reg_req,

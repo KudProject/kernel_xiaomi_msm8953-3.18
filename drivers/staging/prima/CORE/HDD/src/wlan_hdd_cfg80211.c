@@ -5569,8 +5569,9 @@ __wlan_hdd_cfg80211_get_supported_features(struct wiphy *wiphy,
     }
 
     /* D2D RTT is not supported currently by default */
-    if (sme_IsFeatureSupportedByFW(RTT)) {
-        hddLog(LOG1, FL("RTT is supported by firmware"));
+    if (sme_IsFeatureSupportedByFW(RTT) &&
+              pHddCtx->cfg_ini->enable_rtt_support) {
+        hddLog(LOG1, FL("RTT is supported by firmware and framework"));
         fset |= WIFI_FEATURE_D2AP_RTT;
     }
 
@@ -5616,8 +5617,11 @@ __wlan_hdd_cfg80211_get_supported_features(struct wiphy *wiphy,
 #endif
 
 #ifdef WLAN_FEATURE_LINK_LAYER_STATS
+   if ((TRUE == pHddCtx->cfg_ini->fEnableLLStats) &&
+       (TRUE == sme_IsFeatureSupportedByFW(LINK_LAYER_STATS_MEAS))) {
         fset |= WIFI_FEATURE_LINK_LAYER_STATS;
         hddLog(LOG1, FL("Link layer stats is supported by driver"));
+   }
 #endif
 
     skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(fset) +
@@ -5649,7 +5653,6 @@ wlan_hdd_cfg80211_get_supported_features(struct wiphy *wiphy,
                                          const void *data, int data_len)
 {
     int ret = 0;
-
     vos_ssr_protect(__func__);
     ret = __wlan_hdd_cfg80211_get_supported_features(wiphy, wdev, data, data_len);
     vos_ssr_unprotect(__func__);
@@ -5867,7 +5870,7 @@ __wlan_hdd_cfg80211_get_fw_mem_dump(struct wiphy *wiphy,
        (FALSE == sme_IsFeatureSupportedByFW(MEMORY_DUMP_SUPPORTED)))
     {
        hddLog(VOS_TRACE_LEVEL_INFO, FL("FW dump Logging not supported"));
-       return -EINVAL;
+       return -EOPNOTSUPP;
     }
     /*call common API for FW mem dump req*/
     ret = wlan_hdd_fw_mem_dump_req(pHddCtx);
@@ -12039,6 +12042,11 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
     VOS_STATUS vos_status;
     eHalStatus halStatus;
     hdd_context_t *pHddCtx;
+    uint8_t i;
+    v_MACADDR_t *peerMacAddr;
+    u64 rsc_counter = 0;
+    uint8_t staid = HDD_MAX_STA_COUNT;
+    bool pairwise_set_key = false;
 
     ENTER();
 
@@ -12072,15 +12080,24 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
         return -EINVAL;
     }
 
+    if (CSR_MAX_RSC_LEN < params->seq_len)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR,"%s: Invalid seq length %d", __func__,
+                params->seq_len);
+    }
+
     hddLog(VOS_TRACE_LEVEL_INFO,
-           "%s: called with key index = %d & key length %d",
-           __func__, key_index, params->key_len);
+           "%s: called with key index = %d & key length %d & seq length %d",
+           __func__, key_index, params->key_len, params->seq_len);
+
+    peerMacAddr = (v_MACADDR_t *)mac_addr;
 
     /*extract key idx, key len and key*/
     vos_mem_zero(&setKey,sizeof(tCsrRoamSetKey));
     setKey.keyId = key_index;
     setKey.keyLength = params->key_len;
     vos_mem_copy(&setKey.Key[0],params->key, params->key_len);
+    vos_mem_copy(&setKey.keyRsc[0], params->seq, params->seq_len);
 
     switch (params->cipher)
     {
@@ -12186,6 +12203,7 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
                 __func__, __LINE__);
         setKey.keyDirection = eSIR_TX_RX;
         vos_mem_copy(setKey.peerMac, mac_addr,WNI_CFG_BSSID_LEN);
+        pairwise_set_key = true;
     }
     if ((WLAN_HDD_IBSS == pAdapter->device_mode) && !pairwise)
     {
@@ -12215,6 +12233,9 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
         {
             hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
             vos_status = wlan_hdd_check_ula_done(pAdapter);
+
+            if (peerMacAddr && (pairwise_set_key == true))
+                staid = hdd_sta_id_find_from_mac_addr(pAdapter, peerMacAddr);
 
             if ( vos_status != VOS_STATUS_SUCCESS )
             {
@@ -12276,6 +12297,9 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
                 hdd_PerformRoamSetKeyComplete(pAdapter);
             }
         }
+
+        if (pairwise_set_key == true)
+           staid = pHddStaCtx->conn_info.staId[0];
 
         pWextState->roamProfile.Keys.KeyLength[key_index] = (u8)params->key_len;
 
@@ -12382,6 +12406,13 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
                 goto end;
             }
         }
+    }
+
+    if (pairwise_set_key == true) {
+       for (i = 0; i < params->seq_len; i++) {
+          rsc_counter |= (params->seq[i] << i*8);
+       }
+       WLANTL_SetKeySeqCounter(pVosContext, rsc_counter, staid);
     }
 
 end:
@@ -14027,8 +14058,8 @@ int __wlan_hdd_cfg80211_scan( struct wiphy *wiphy,
      * Becasue of this, driver is assuming that this is not wildcard scan and so
      * is not aging out the scan results.
      */
-    if (request->ssids && '\0' == request->ssids->ssid[0])
-    {
+    if ((request->ssids) && (request->n_ssids == 1) &&
+        ('\0' == request->ssids->ssid[0])) {
         request->n_ssids = 0;
     }
 
@@ -14449,7 +14480,7 @@ void hdd_select_cbmode( hdd_adapter_t *pAdapter,v_U8_t operationChannel)
         /* This call decides required channel bonding mode */
         sme_SelectCBMode((WLAN_HDD_GET_CTX(pAdapter)->hHal),
                      hdd_cfg_xlate_to_csr_phy_mode(hddDot11Mode),
-                     operationChannel);
+                     operationChannel, eHT_MAX_CHANNEL_WIDTH);
     }
 }
 
@@ -15820,6 +15851,7 @@ int wlan_hdd_disconnect( hdd_adapter_t *pAdapter, u16 reason )
     }
     hdd_connSetConnectionState( pHddStaCtx, eConnectionState_Disconnecting );
     spin_unlock_bh(&pAdapter->lock_for_active_session);
+    vos_flush_delayed_work(&pHddCtx->ecsa_chan_change_work);
 
     VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                   FL( "Set HDD connState to eConnectionState_Disconnecting" ));
@@ -20762,6 +20794,74 @@ void wlan_hdd_cfg80211_abort_scan(struct wiphy *wiphy,
 }
 #endif
 
+#ifdef CHANNEL_SWITCH_SUPPORTED
+/**
+ * __wlan_hdd_cfg80211_channel_switch()- function to switch
+ * channel in SAP/GO
+ * @wiphy:  wiphy pointer
+ * @dev: dev pointer.
+ * @csa_params: Change channel params
+ *
+ * This function is called to switch channel in SAP/GO
+ *
+ * Return: 0 if success else return non zero
+ */
+static int __wlan_hdd_cfg80211_channel_switch(struct wiphy *wiphy,
+   struct net_device *dev, struct cfg80211_csa_settings *csa_params)
+{
+   hdd_adapter_t *adapter = WLAN_HDD_GET_PRIV_PTR(dev);
+   hdd_context_t *hdd_ctx;
+   uint8_t channel;
+   int ret;
+   v_CONTEXT_t vos_ctx;
+
+   hddLog(LOGE, FL("Set Freq %d"), csa_params->chandef.chan->center_freq);
+
+   hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+   ret = wlan_hdd_validate_context(hdd_ctx);
+   if (ret)
+       return ret;
+
+   vos_ctx = (WLAN_HDD_GET_CTX(adapter))->pvosContext;
+   if (!vos_ctx) {
+       hddLog(LOGE, FL("Vos ctx is null"));
+       return -EINVAL;
+   }
+
+   if ((WLAN_HDD_SOFTAP != adapter->device_mode) &&
+       (WLAN_HDD_P2P_GO != adapter->device_mode))
+        return -ENOTSUPP;
+
+   channel = vos_freq_to_chan(csa_params->chandef.chan->center_freq);
+   ret = wlansap_set_channel_change(vos_ctx, channel, false);
+
+   return ret;
+}
+
+/**
+ * wlan_hdd_cfg80211_channel_switch()- function to switch
+ * channel in SAP/GO
+ * @wiphy:  wiphy pointer
+ * @dev: dev pointer.
+ * @csa_params: Change channel params
+ *
+ * This function is called to switch channel in SAP/GO
+ *
+ * Return: 0 if success else return non zero
+ */
+static int wlan_hdd_cfg80211_channel_switch(struct wiphy *wiphy,
+   struct net_device *dev, struct cfg80211_csa_settings *csa_params)
+{
+   int ret;
+
+   vos_ssr_protect(__func__);
+   ret = __wlan_hdd_cfg80211_channel_switch(wiphy, dev, csa_params);
+   vos_ssr_unprotect(__func__);
+
+   return ret;
+}
+#endif
+
 /* cfg80211_ops */
 static struct cfg80211_ops wlan_hdd_cfg80211_ops =
 {
@@ -20836,5 +20936,9 @@ static struct cfg80211_ops wlan_hdd_cfg80211_ops =
     defined(CFG80211_ABORT_SCAN)
      .abort_scan = wlan_hdd_cfg80211_abort_scan,
 #endif
+#ifdef CHANNEL_SWITCH_SUPPORTED
+	.channel_switch = wlan_hdd_cfg80211_channel_switch,
+#endif
+
 };
 
