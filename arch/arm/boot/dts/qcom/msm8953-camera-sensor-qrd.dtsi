@@ -909,7 +909,7 @@
 		qcom,csiphy-sd-index = <0>;
 		qcom,csid-sd-index = <0>;
 		qcom,mount-angle = <90>;
-		qcom,eeprom-src = <&eeprom0 &eeprom1 &eeprom2 &eeprom6 &eeprom7 &eeprom8>;
+		qcom,eeprom-src = <&eeprom0 &eeprom1 &eeprom2 &eeprom6 &eeprom7 &eeprom8 &eeprom9>;
 		qcom,actuator-src = <&actuator0>;
 		qcom,led-flash-src = <&led_flash0>;
 		cam_vdig-supply = <&pm8953_l2>;
