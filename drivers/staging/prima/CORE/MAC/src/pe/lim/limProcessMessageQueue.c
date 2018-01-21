@@ -826,6 +826,11 @@ limHandle80211Frames(tpAniSirGlobal pMac, tpSirMsgQ limMsg, tANI_U8 *pDeferMsg)
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
     if (WDA_GET_ROAMCANDIDATEIND(pRxPacketInfo))
     {
+        if (vos_check_monitor_state())
+        {
+            limLog( pMac, LOGW, FL("Ignore raom candidate when roam started"));
+            goto end;
+        }
         limLog( pMac, LOGW, FL("Notify SME with candidate ind"));
 
         if (WDA_IF_PER_ROAMCANDIDATEIND(pRxPacketInfo) &&
@@ -2541,6 +2546,9 @@ send_chan_switch_resp:
         lim_process_sme_del_ba_ses_req(pMac, limMsg->bodyptr);
         vos_mem_free((v_VOID_t*)limMsg->bodyptr);
         limMsg->bodyptr = NULL;
+        break;
+    case eWNI_SME_STA_DEL_BA_REQ:
+        limStaDelBASession(pMac);
         break;
     default:
         vos_mem_free((v_VOID_t*)limMsg->bodyptr);
