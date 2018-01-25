@@ -1407,6 +1407,12 @@ config CC_OPTIMIZE_FOR_SIZE
 
 	  If unsure, say N.
 
+config LOCAL_INIT
+	bool "Zero uninitialized locals"
+	help
+	  Zero-fill uninitialized local variables, other than variable-length
+	  arrays. Requires compiler support.
+
 config SYSCTL
 	bool
 
