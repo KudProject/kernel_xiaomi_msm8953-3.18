@@ -722,6 +722,9 @@ WLANTL_Open
   pTLCb->tlConfigInfo.uDelayedTriggerFrmInt =
                 pTLConfig->uDelayedTriggerFrmInt;
 
+  pTLCb->tlConfigInfo.ucIsReplayCheck =
+                pTLConfig->ucIsReplayCheck;
+
   /*------------------------------------------------------------------------
     Allocate internal resources
    ------------------------------------------------------------------------*/
@@ -843,7 +846,8 @@ WLANTL_Start
   vos_atomic_set_U8( &pTLCb->ucTxSuspended, 0);
   pTLCb->uResCount = uResCount;
 
-  vos_timer_start(&pTLCb->tx_frames_timer, WLANTL_SAMPLE_INTERVAL);
+  if (IS_FEATURE_SUPPORTED_BY_FW(SAP_BUFF_ALLOC))
+    vos_timer_start(&pTLCb->tx_frames_timer, WLANTL_SAMPLE_INTERVAL);
 
   return VOS_STATUS_SUCCESS;
 }/* WLANTL_Start */
@@ -1522,7 +1526,9 @@ WLANTL_RegisterSTAClient
   vos_copy_macaddr( &pClientSTA->wSTADesc.vSelfMACAddress, &pwSTADescType->vSelfMACAddress);
 
   /* In volans release L replay check is done at TL */
-  pClientSTA->ucIsReplayCheckValid = pwSTADescType->ucIsReplayCheckValid;
+  if (pTLCb->tlConfigInfo.ucIsReplayCheck)
+     pClientSTA->ucIsReplayCheckValid = pwSTADescType->ucIsReplayCheckValid;
+
   pClientSTA->ulTotalReplayPacketsDetected =  0;
 /*Clear replay counters of the STA on all TIDs*/
   for(ucTid = 0; ucTid < WLANTL_MAX_TID ; ucTid++)
@@ -14491,8 +14497,8 @@ void WLANTL_RegisterFwdEapol(v_PVOID_t pvosGCtx,
    WLANTL_CbType* pTLCb = NULL;
    pTLCb = VOS_GET_TL_CB(pvosGCtx);
 
-   pTLCb->pfnEapolFwd = pfnFwdEapol;
-
+   if (pTLCb)
+      pTLCb->pfnEapolFwd = pfnFwdEapol;
 }
 
  /**
