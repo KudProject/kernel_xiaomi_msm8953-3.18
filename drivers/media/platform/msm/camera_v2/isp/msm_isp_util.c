@@ -886,9 +886,7 @@ static long msm_isp_ioctl_unlocked(struct v4l2_subdev *sd,
 		break;
 	case VIDIOC_MSM_ISP_CFG_STREAM:
 		mutex_lock(&vfe_dev->core_mutex);
-		mutex_lock(&vfe_dev->buf_mgr->lock);
 		rc = msm_isp_cfg_axi_stream(vfe_dev, arg);
-		mutex_unlock(&vfe_dev->buf_mgr->lock);
 		mutex_unlock(&vfe_dev->core_mutex);
 		break;
 #ifndef CONFIG_MACH_XIAOMI_MIDO
@@ -1004,9 +1002,7 @@ static long msm_isp_ioctl_unlocked(struct v4l2_subdev *sd,
 		break;
 	case VIDIOC_MSM_ISP_CFG_STATS_STREAM:
 		mutex_lock(&vfe_dev->core_mutex);
-		mutex_lock(&vfe_dev->buf_mgr->lock);
 		rc = msm_isp_cfg_stats_stream(vfe_dev, arg);
-		mutex_unlock(&vfe_dev->buf_mgr->lock);
 		mutex_unlock(&vfe_dev->core_mutex);
 		break;
 	case VIDIOC_MSM_ISP_UPDATE_STATS_STREAM:
