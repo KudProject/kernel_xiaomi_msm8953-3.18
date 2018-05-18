@@ -70,3 +70,5 @@
 		status = "okay";
 	};
 };
+
+#include "msm8953-qrd-sku3-xiaomi-common.dtsi"
