@@ -20,11 +20,11 @@
 		android {
 			fstab {
 				vendor {
-					status = "disable";
+					status = "disabled";
 				};
 				system {
 					fsmgr_flags = "wait,slotselect";
-					status = "disable";
+					status = "disabled";
 				};
 
 			};
