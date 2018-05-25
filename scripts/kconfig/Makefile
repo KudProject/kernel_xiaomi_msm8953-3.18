@@ -206,6 +206,9 @@ HOST_EXTRACFLAGS += $(shell $(CONFIG_SHELL) $(srctree)/$(src)/check.sh $(HOSTCC)
 HOSTCFLAGS_zconf.lex.o	:= -I$(src)
 HOSTCFLAGS_zconf.tab.o	:= -I$(src)
 
+# Temporarily suppress GCC 8.1's format-overflow warning until proper fix is found
+HOSTCFLAGS_zconf.tab.o	+= $(call cc-disable-warning,format-overflow,)
+
 LEX_PREFIX_zconf	:= zconf
 YACC_PREFIX_zconf	:= zconf
 
