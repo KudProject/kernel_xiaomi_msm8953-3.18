@@ -96,5 +96,6 @@ obj-$(CONFIG_TOUCHSCREEN_GT9XX)		+= gt9xx_mido/
 else
 obj-$(CONFIG_TOUCHSCREEN_GT9XX)		+= gt9xx/
 endif
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET)	+= hxchipset/
 obj-$(CONFIG_TOUCHSCREEN_FTS)		+= ft8716/
 obj-$(CONFIG_TOUCHSCREEN_TD4310)    += td4310/

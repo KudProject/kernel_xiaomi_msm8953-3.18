@@ -149,6 +149,7 @@ dtb-$(CONFIG_ARCH_MDM9650) += mdm9650-sim.dtb \
 	mdm9650-emmc-mtp.dtb \
 	mdm9650-nand-mtp.dtb \
 	mdm9650-ttp.dtb \
+	mdm9650-pcie-ep-ttp.dtb \
 	mdm9650-nand-dualwifi-mtp.dtb \
 	mdm9650-v1.1-emmc-cdp.dtb \
 	mdm9650-v1.1-nand-cdp.dtb \
@@ -361,6 +362,7 @@ dtb-$(CONFIG_ARCH_MSM8909) += msm8909-pm8916-mtp.dtb \
 	msm8909-1gb-rcm.dtb \
 	msm8909-pm8916-1gb-rcm.dtb \
 	msm8909-1gb-cdp.dtb \
+	apq8009-ext-codec-dragon.dtb \
 	apq8009-dragon.dtb
 
 ifeq ($(CONFIG_ARM64),y)
