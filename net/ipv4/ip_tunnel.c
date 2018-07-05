@@ -311,7 +311,7 @@ static struct net_device *__ip_tunnel_create(struct net *net,
 		if (strlen(ops->kind) > (IFNAMSIZ - 3))
 			goto failed;
 		strlcpy(name, ops->kind, IFNAMSIZ);
-		strcat(name, "%d");
+		strncat(name, "%d", 2);
 	}
 
 	ASSERT_RTNL();
