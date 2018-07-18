@@ -1034,7 +1034,6 @@ static void f2fs_put_super(struct super_block *sb)
 
 	/* write_checkpoint can update stat informaion */
 	f2fs_destroy_stats(sbi);
-	f2fs_sbi_list_del(sbi);
 
 	/*
 	 * normally superblock is clean, so we need to release this.
@@ -1376,6 +1375,7 @@ static void default_options(struct f2fs_sb_info *sbi)
 	F2FS_OPTION(sbi).test_dummy_encryption = false;
 	sbi->readdir_ra = 1;
 
+	set_opt(sbi, BG_GC);
 	set_opt(sbi, INLINE_XATTR);
 	set_opt(sbi, INLINE_DATA);
 	set_opt(sbi, INLINE_DENTRY);
@@ -2909,8 +2909,6 @@ try_onemore:
 	err = f2fs_build_stats(sbi);
 	if (err)
 		goto free_node_inode;
-
-	f2fs_sbi_list_add(sbi);
 
 	/* read root inode and dentry */
 	root = f2fs_iget(sb, F2FS_ROOT_INO(sbi));
