@@ -120,15 +120,6 @@ config CPU_FREQ_DEFAULT_GOV_CONSERVATIVE
 	  governor. If unsure have a look at the help section of the
 	  driver. Fallback governor will be the performance governor.
 
-config CPU_FREQ_DEFAULT_GOV_CLARITY
-	bool "clarity"
-	select CPU_FREQ_GOV_CLARITY
-	help
-	  Use the CPUFreq governor 'clarity' as default. This allows
-	  you to get a full dynamic cpu frequency capable system by simply
-	  loading your cpufreq low-level hardware driver, using the
-	  'clarity' governor for latency-sensitive workloads.
-
 config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 	bool "interactive"
 	select CPU_FREQ_GOV_INTERACTIVE
@@ -201,14 +192,6 @@ config CPU_FREQ_GOV_ONDEMAND
 	  module will be called cpufreq_ondemand.
 
 	  For details, take a look at linux/Documentation/cpu-freq.
-
-	  If in doubt, say N.
-
-config CPU_FREQ_GOV_CLARITY
-	bool "'clarity' cpufreq policy governor"
-	help
-	  'clarity' - This driver adds a dynamic cpufreq policy governor
-	  designed for latency-sensitive workloads.
 
 	  If in doubt, say N.
 
