@@ -37,7 +37,7 @@
 #include <asm/vdso.h>
 #include <asm/vdso_datapage.h>
 
-extern char vdso_start[], vdso_end[];
+extern char vdso_start, vdso_end;
 static unsigned long vdso_pages __ro_after_init;
 
 /*
@@ -123,14 +123,14 @@ static int __init vdso_init(void)
 	int i;
 	struct page **vdso_pagelist;
 
-	if (memcmp(vdso_start, "\177ELF", 4)) {
+	if (memcmp(&vdso_start, "\177ELF", 4)) {
 		pr_err("vDSO is not a valid ELF object!\n");
 		return -EINVAL;
 	}
 
-	vdso_pages = (vdso_end - vdso_start) >> PAGE_SHIFT;
+	vdso_pages = (&vdso_end - &vdso_start) >> PAGE_SHIFT;
 	pr_info("vdso: %ld pages (%ld code @ %p, %ld data @ %p)\n",
-		vdso_pages + 1, vdso_pages, vdso_start, 1L, vdso_data);
+		vdso_pages + 1, vdso_pages, &vdso_start, 1L, vdso_data);
 
 	/* Allocate the vDSO pagelist, plus a page for the data. */
 	vdso_pagelist = kcalloc(vdso_pages + 1, sizeof(struct page *),
@@ -143,7 +143,7 @@ static int __init vdso_init(void)
 
 	/* Grab the vDSO code pages. */
 	for (i = 0; i < vdso_pages; i++)
-		vdso_pagelist[i + 1] = virt_to_page(vdso_start + i * PAGE_SIZE);
+		vdso_pagelist[i + 1] = virt_to_page(&vdso_start + i * PAGE_SIZE);
 
 	vdso_spec[0].pages = &vdso_pagelist[0];
 	vdso_spec[1].pages = &vdso_pagelist[1];
