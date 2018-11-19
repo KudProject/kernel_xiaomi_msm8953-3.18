@@ -715,20 +715,6 @@ endif
 endif
 KBUILD_CFLAGS += $(stackp-flag)
 
-ifdef CONFIG_LOCAL_INIT
-  ifeq ($(cc-name),clang)
-    local-init-flag := -fsanitize=local-init
-    ifeq ($(call cc-option, $(local-init-flag)),)
-      $(warning Cannot use CONFIG_LOCAL_INIT: \
-                $(local-init-flag) not supported by compiler)
-      local-init-flag :=
-    endif
-    KBUILD_CFLAGS += $(local-init-flag)
-  else
-    $(warning CONFIG_LOCAL_INIT is not supported by GCC)
-  endif
-endif
-
 ifdef CONFIG_KCOV
   ifeq ($(call cc-option, $(CFLAGS_KCOV)),)
     $(warning Cannot use CONFIG_KCOV: \
