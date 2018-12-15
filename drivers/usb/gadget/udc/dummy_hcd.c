@@ -313,11 +313,10 @@ static void set_link_state_by_speed(struct dummy_hcd *dum_hcd)
 			     USB_PORT_STAT_CONNECTION) == 0)
 				dum_hcd->port_status |=
 					(USB_PORT_STAT_C_CONNECTION << 16);
-			if ((dum_hcd->port_status &
-			     USB_PORT_STAT_ENABLE) == 1 &&
-				(dum_hcd->port_status &
-				 USB_SS_PORT_LS_U0) == 1 &&
-				dum_hcd->rh_state != DUMMY_RH_SUSPENDED)
+			if ((dum_hcd->port_status & USB_PORT_STAT_ENABLE) &&
+			    (dum_hcd->port_status &
+			     USB_PORT_STAT_LINK_STATE) == USB_SS_PORT_LS_U0 &&
+			    dum_hcd->rh_state != DUMMY_RH_SUSPENDED)
 				dum_hcd->active = 1;
 		}
 	} else {
@@ -974,6 +973,8 @@ static int dummy_udc_probe(struct platform_device *pdev)
 	int		rc;
 
 	dum = *((void **)dev_get_platdata(&pdev->dev));
+	/* Clear usb_gadget region for new registration to udc-core */
+	memzero_explicit(&dum->gadget, sizeof(struct usb_gadget));
 	dum->gadget.name = gadget_name;
 	dum->gadget.ops = &dummy_ops;
 	if (mod_data.is_super_speed)
@@ -1947,7 +1948,7 @@ ss_hub_descriptor(struct usb_hub_descriptor *desc)
 	desc->wHubCharacteristics = cpu_to_le16(0x0001);
 	desc->bNbrPorts = 1;
 	desc->u.ss.bHubHdrDecLat = 0x04; /* Worst case: 0.4 micro sec*/
-	desc->u.ss.DeviceRemovable = 0xffff;
+	desc->u.ss.DeviceRemovable = 0;
 }
 
 static inline void hub_descriptor(struct usb_hub_descriptor *desc)
@@ -1957,8 +1958,8 @@ static inline void hub_descriptor(struct usb_hub_descriptor *desc)
 	desc->bDescLength = 9;
 	desc->wHubCharacteristics = cpu_to_le16(0x0001);
 	desc->bNbrPorts = 1;
-	desc->u.hs.DeviceRemovable[0] = 0xff;
-	desc->u.hs.DeviceRemovable[1] = 0xff;
+	desc->u.hs.DeviceRemovable[0] = 0;
+	desc->u.hs.DeviceRemovable[1] = 0xff;	/* PortPwrCtrlMask */
 }
 
 static int dummy_hub_control(
