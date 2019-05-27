@@ -311,6 +311,9 @@ static struct ieee80211_supported_band wlan_hdd_band_2_4_GHZ =
     .ht_cap.mcs.rx_mask    = { 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
     .ht_cap.mcs.rx_highest = cpu_to_le16( 72 ),
     .ht_cap.mcs.tx_params  = IEEE80211_HT_MCS_TX_DEFINED,
+    .vht_cap.vht_supported   = 1,
+    .vht_cap.cap = IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_11454
+                            | IEEE80211_VHT_CAP_SHORT_GI_80,
 };
 
 static struct ieee80211_supported_band wlan_hdd_band_5_GHZ =
@@ -332,6 +335,9 @@ static struct ieee80211_supported_band wlan_hdd_band_5_GHZ =
     .ht_cap.mcs.rx_mask    = { 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
     .ht_cap.mcs.rx_highest = cpu_to_le16( 72 ),
     .ht_cap.mcs.tx_params  = IEEE80211_HT_MCS_TX_DEFINED,
+    .vht_cap.vht_supported   = 1,
+    .vht_cap.cap = IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_11454
+                            | IEEE80211_VHT_CAP_SHORT_GI_80,
 };
 
 /* This structure contain information what kind of frame are expected in
@@ -5540,6 +5546,7 @@ static int __wlan_hdd_cfg80211_set_spoofed_mac_oui(struct wiphy *wiphy,
 {
 
     hdd_context_t *pHddCtx      = wiphy_priv(wiphy);
+    hdd_adapter_t *adapter = WLAN_HDD_GET_PRIV_PTR(wdev->netdev);
     struct nlattr *tb[QCA_WLAN_VENDOR_ATTR_SET_SCANNING_MAC_OUI_MAX + 1];
 
     ENTER();
@@ -5547,6 +5554,17 @@ static int __wlan_hdd_cfg80211_set_spoofed_mac_oui(struct wiphy *wiphy,
     if (0 != wlan_hdd_validate_context(pHddCtx)){
         return -EINVAL;
     }
+
+    if (!adapter) {
+        hddLog(VOS_TRACE_LEVEL_ERROR, FL("HDD adpater is NULL"));
+        return -EINVAL;
+    }
+
+    if (adapter->device_mode != WLAN_HDD_INFRA_STATION) {
+        hddLog(VOS_TRACE_LEVEL_INFO, FL("MAC_SPOOFED_SCAN allowed only in STA"));
+        return -ENOTSUPP;
+    }
+
     if (0 == pHddCtx->cfg_ini->enableMacSpoofing) {
         hddLog(VOS_TRACE_LEVEL_INFO, FL("MAC_SPOOFED_SCAN disabled in ini"));
         return -ENOTSUPP;
@@ -10742,16 +10760,6 @@ disconnected:
     return result;
 }
 
-/*
- * hdd_check_and_disconnect_sta_on_invalid_channel() - Disconnect STA if it is
- * on indoor channel
- * @hdd_ctx: pointer to hdd context
- *
- * STA should be disconnected before starting the SAP if it is on indoor
- * channel.
- *
- * Return: void
- */
 void hdd_check_and_disconnect_sta_on_invalid_channel(hdd_context_t *hdd_ctx)
 {
 
@@ -10841,6 +10849,13 @@ int wlan_hdd_restore_channels(hdd_context_t *hdd_ctx)
 					wiphy_channel->flags =
 						cache_chann->
 						channel_info[i].wiphy_status;
+					hddLog(VOS_TRACE_LEVEL_DEBUG,
+					"Restore channel %d reg_stat %d wiphy_stat 0x%x",
+					cache_chann->
+						channel_info[i].channel_num,
+					cache_chann->
+						channel_info[i].reg_status,
+					wiphy_channel->flags);
 					break;
 				}
 			}
@@ -10859,17 +10874,7 @@ int wlan_hdd_restore_channels(hdd_context_t *hdd_ctx)
 	return 0;
 }
 
-/*
- * wlan_hdd_disable_channels() - Cache the the channels
- * and current state of the channels from the channel list
- * received in the command and disable the channels on the
- * wiphy and NV table.
- * @hdd_ctx: Pointer to hdd context
- *
- * @return: 0 on success, Error code on failure
- */
-
-static int wlan_hdd_disable_channels(hdd_context_t *hdd_ctx)
+int wlan_hdd_disable_channels(hdd_context_t *hdd_ctx)
 {
 	struct hdd_cache_channels *cache_chann;
 	struct wiphy *wiphy;
@@ -11032,12 +11037,6 @@ static int wlan_hdd_cfg80211_start_bss(hdd_adapter_t *pHostapdAdapter,
         /* check if STA is on indoor channel */
         if (hdd_is_sta_sap_scc_allowed_on_dfs_chan(pHddCtx))
             hdd_check_and_disconnect_sta_on_invalid_channel(pHddCtx);
-    }
-
-    if (pHostapdAdapter->device_mode == WLAN_HDD_SOFTAP) {
-        /* Disable the channels received in command SET_DISABLE_CHANNEL_LIST*/
-        wlan_hdd_disable_channels(pHddCtx);
-        hdd_check_and_disconnect_sta_on_invalid_channel(pHddCtx);
     }
 
     pHostapdState = WLAN_HDD_GET_HOSTAP_STATE_PTR(pHostapdAdapter);
@@ -11638,8 +11637,6 @@ static int wlan_hdd_cfg80211_start_bss(hdd_adapter_t *pHostapdAdapter,
 
    return 0;
 error:
-    if (pHostapdAdapter->device_mode == WLAN_HDD_SOFTAP)
-        wlan_hdd_restore_channels(pHddCtx);
    /* Revert the indoor to passive marking if START BSS fails */
     if (iniConfig->disable_indoor_channel &&
                    pHostapdAdapter->device_mode == WLAN_HDD_SOFTAP) {
@@ -13009,8 +13006,8 @@ VOS_STATUS wlan_hdd_send_sta_authorized_event(
 					const v_MACADDR_t *mac_addr)
 {
 	struct sk_buff *vendor_event;
-	uint32_t sta_flags = 0;
 	VOS_STATUS status;
+	struct  nl80211_sta_flag_update sta_flags;
 
 	ENTER();
 
@@ -13035,18 +13032,22 @@ VOS_STATUS wlan_hdd_send_sta_authorized_event(
 		return -EINVAL;
 	}
 
-	sta_flags |= BIT(NL80211_STA_FLAG_AUTHORIZED);
+	sta_flags.mask |= BIT(NL80211_STA_FLAG_AUTHORIZED);
+	sta_flags.set = true;
 
-	status = nla_put_u32(vendor_event,
-			     QCA_WLAN_VENDOR_ATTR_LINK_PROPERTIES_STA_FLAGS,
-			     sta_flags);
+	status = nla_put(vendor_event,
+			 QCA_WLAN_VENDOR_ATTR_LINK_PROPERTIES_STA_FLAGS,
+			 sizeof(struct  nl80211_sta_flag_update),
+			 &sta_flags);
+
 	if (status) {
 		hddLog(VOS_TRACE_LEVEL_ERROR, FL("STA flag put fails"));
 		kfree_skb(vendor_event);
 		return VOS_STATUS_E_FAILURE;
 	}
+
 	status = nla_put(vendor_event,
-			 QCA_WLAN_VENDOR_ATTR_LINK_PROPERTIES_STA_MAC,
+			 QCA_WLAN_VENDOR_ATTR_LINK_PROPERTIES_MAC_ADDR,
 			 VOS_MAC_ADDR_SIZE, mac_addr->bytes);
 	if (status) {
 		hddLog(VOS_TRACE_LEVEL_ERROR, FL("STA MAC put fails"));
@@ -14250,16 +14251,7 @@ static struct cfg80211_bss* wlan_hdd_cfg80211_inform_bss(
                 rssi, GFP_KERNEL );
 }
 
-/*
- * wlan_hdd_cfg80211_update_bss_list :to inform nl80211
- * interface that BSS might have been lost.
- * @pAdapter: adaptor
- * @bssid: bssid which might have been lost
- *
- * Return: bss which is unlinked from kernel cache
- */
-struct cfg80211_bss* wlan_hdd_cfg80211_update_bss_list(
-   hdd_adapter_t *pAdapter, tSirMacAddr bssid)
+void wlan_hdd_cfg80211_unlink_bss(hdd_adapter_t *pAdapter, tSirMacAddr bssid)
 {
     struct net_device *dev = pAdapter->dev;
     struct wireless_dev *wdev = dev->ieee80211_ptr;
@@ -14269,14 +14261,15 @@ struct cfg80211_bss* wlan_hdd_cfg80211_update_bss_list(
     bss = hdd_get_bss_entry(wiphy,
           NULL, bssid,
           NULL, 0);
-    if (bss == NULL) {
+    if (!bss) {
         hddLog(LOGE, FL("BSS not present"));
     } else {
         hddLog(LOG1, FL("cfg80211_unlink_bss called for BSSID "
                MAC_ADDRESS_STR), MAC_ADDR_ARRAY(bssid));
         cfg80211_unlink_bss(wiphy, bss);
+        /* cfg80211_get_bss get bss with ref count so release it */
+        cfg80211_put_bss(wiphy, bss);
     }
-    return bss;
 }
 
 
