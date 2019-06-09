@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,8 @@
 
 #define IPC_BRIDGE_MAX_READ_SZ	(8 * 1024)
 #define IPC_BRIDGE_MAX_WRITE_SZ	(8 * 1024)
+
+#define IPC_WRITE_WAIT_TIMEOUT	10000
 
 /* for configfs support */
 struct ipc_opts {
@@ -240,6 +242,7 @@ static int ipc_write(struct platform_device *pdev, char *buf,
 	unsigned long flags;
 	struct usb_request *req;
 	struct usb_ep *in;
+	int ret;
 
 	if (!ipc_dev)
 		return -ENODEV;
@@ -266,6 +269,8 @@ retry_write:
 		return -EINVAL;
 	}
 
+	reinit_completion(&ipc_dev->write_done);
+
 	if (usb_ep_queue(in, req, GFP_KERNEL)) {
 		wait_event_interruptible(ipc_dev->state_wq, ipc_dev->online ||
 				ipc_dev->current_state == IPC_DISCONNECTED);
@@ -273,12 +278,23 @@ retry_write:
 		goto retry_write;
 	}
 
-	if (unlikely(wait_for_completion_interruptible(&ipc_dev->write_done))) {
-		usb_ep_dequeue(in, req);
-		return -EINTR;
+	ret = wait_for_completion_interruptible_timeout(&ipc_dev->write_done,
+				msecs_to_jiffies(IPC_WRITE_WAIT_TIMEOUT));
+	if (ret < 0) {
+		pr_err("%s: Interruption triggered\n", __func__);
+		ret = -EINTR;
+		goto fail;
+	} else if (ret == 0) {
+		pr_err("%s: Request timed out\n", __func__);
+		ret = -ETIMEDOUT;
+		goto fail;
 	}
 
 	return !req->status ? req->actual : req->status;
+
+fail:
+	usb_ep_dequeue(in, req);
+	return ret;
 }
 
 static void ipc_out_complete(struct usb_ep *ep, struct usb_request *req)
@@ -332,6 +348,8 @@ retry_read:
 		ipc_dev->pending_reads--;
 		return -EINVAL;
 	}
+
+	reinit_completion(&ipc_dev->read_done);
 
 	if (usb_ep_queue(out, req, GFP_KERNEL)) {
 		wait_event_interruptible(ipc_dev->state_wq, ipc_dev->online ||
