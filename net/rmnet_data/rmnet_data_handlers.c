@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,12 +22,14 @@
 #include <linux/netdev_features.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <linux/if_arp.h>
 #include "rmnet_data_private.h"
 #include "rmnet_data_config.h"
 #include "rmnet_data_vnd.h"
 #include "rmnet_map.h"
 #include "rmnet_data_stats.h"
 #include "rmnet_data_trace.h"
+#include <linux/etherdevice.h>
 
 RMNET_LOG_MODULE(RMNET_DATA_LOGMASK_HANDLER);
 
@@ -252,6 +254,37 @@ static void rmnet_optional_gro_flush(struct napi_struct *napi,
 }
 
 /**
+ * rmnet_frame_eth_header() - Add's eth header to skb
+ *
+ * Add's eth header to the skb, if rmnet is emulated as eth device
+ * and the dummy eth neigh and bridge ep addresses are configured
+ *
+ */
+static void rmnet_frame_eth_header(struct sk_buff *skb, struct net_device *dev)
+{
+	if (likely(dev->type != ARPHRD_ETHER))
+		return;
+
+	if (unlikely(skb_headroom(skb) < ETH_HLEN))
+		return;
+
+	if (is_valid_ether_addr(rmnet_vnd_get_eth_bridge_ep_addr(dev)) &&
+	    is_valid_ether_addr(rmnet_vnd_get_dummy_eth_neigh_mac(dev))) {
+		if (eth_header(skb, dev, ntohs(skb->protocol),
+			       rmnet_vnd_get_eth_bridge_ep_addr(dev)/* dest */,
+			       rmnet_vnd_get_dummy_eth_neigh_mac(dev)/* src */,
+			       skb->len) == ETH_HLEN) {
+			skb_reset_mac_header(skb);
+			skb->mac_len = ETH_HLEN;
+			skb->protocol = eth_type_trans(skb, dev);
+		}
+	}
+	/* If the addresses are not configured or if there is no head
+	 * room, let packets take a default non-bridged path.
+	 */
+}
+
+/**
  * __rmnet_deliver_skb() - Deliver skb
  *
  * Determines where to deliver skb. Options are: consume by network stack,
@@ -266,6 +299,7 @@ static rx_handler_result_t __rmnet_deliver_skb(struct sk_buff *skb,
 {
 	struct napi_struct *napi = NULL;
 	gro_result_t gro_res;
+	struct net_device *dev = skb->dev;
 
 	trace___rmnet_deliver_skb(skb);
 	switch (ep->rmnet_mode) {
@@ -285,6 +319,7 @@ static rx_handler_result_t __rmnet_deliver_skb(struct sk_buff *skb,
 		case RX_HANDLER_PASS:
 			skb->pkt_type = PACKET_HOST;
 			rmnet_reset_mac_header(skb);
+			rmnet_frame_eth_header(skb, dev);
 			if (rmnet_check_skb_can_gro(skb) &&
 			    (skb->dev->features & NETIF_F_GRO)) {
 				napi = get_current_napi_context();
@@ -641,6 +676,33 @@ rx_handler_result_t rmnet_rx_handler(struct sk_buff **pskb)
 }
 
 /**
+ * rmnet_check_remove_eth_header() - Removes mac header if present
+ * @skb:        packet to transmit
+ * @dev:	device on which packet arrived
+ *
+ * Removes the ethernet header, if rmnet_data is emulated as ethernet device
+ * and the packet has a ethernet header.
+ */
+static void rmnet_check_remove_eth_header(struct sk_buff *skb,
+					  struct net_device *dev)
+{
+	if (likely(dev->type != ARPHRD_ETHER))
+		return;
+
+	/* Before calculating the head room, check if the skb has */
+	/* mac header set, if so remove the header */
+	if (is_valid_ether_addr(rmnet_vnd_get_eth_bridge_ep_addr(dev)) &&
+	    is_valid_ether_addr(rmnet_vnd_get_dummy_eth_neigh_mac(dev)) &&
+	    skb_mac_header_was_set(skb) &&
+	    (skb->mac_header != skb->network_header) &&
+	    skb->mac_len) {
+			skb_pull(skb, skb->mac_len);
+			skb_pop_mac_header(skb);
+			skb->mac_len = 0;
+	}
+}
+
+/**
  * rmnet_egress_handler() - Egress handler entry point
  * @skb:        packet to transmit
  * @ep:         logical endpoint configuration of the packet originator
@@ -671,6 +733,7 @@ void rmnet_egress_handler(struct sk_buff *skb,
 	LOGD("Packet going out on %s with egress format 0x%08X",
 	     skb->dev->name, config->egress_data_format);
 
+	rmnet_check_remove_eth_header(skb, orig_dev);
 	if (config->egress_data_format & RMNET_EGRESS_FORMAT_MAP) {
 		switch (rmnet_map_egress_handler(skb, config, ep, orig_dev)) {
 		case RMNET_MAP_CONSUMED:
