@@ -60,7 +60,10 @@ enum rmnet_ioctl_extended_cmds_e {
 	RMNET_IOCTL_SET_XLAT_DEV_INFO          = 0x0015,   /* xlat dev name   */
 	RMNET_IOCTL_DEREGISTER_DEV             = 0x0016,   /* Dereg a net dev */
 	RMNET_IOCTL_GET_SG_SUPPORT             = 0x0017,   /* Query sg support*/
-	RMNET_IOCTL_EXTENDED_MAX               = 0x0018
+	RMNET_IOCTL_SET_ETH_BRIDGE_EP          = 0x0018,   /* bridge ep mac */
+	RMNET_IOCTL_SET_DUMMY_NEIGH_MAC        = 0x0019,   /* dummy neigh mac */
+	RMNET_IOCTL_SET_RMNET_AS_ETH           = 0x001A,   /* vnd as eth */
+	RMNET_IOCTL_EXTENDED_MAX               = 0x001B
 };
 
 /* Return values for the RMNET_IOCTL_GET_SUPPORTED_FEATURES IOCTL */
@@ -91,6 +94,10 @@ enum rmnet_ioctl_extended_cmds_e {
 /* User space may not have this defined. */
 #ifndef IFNAMSIZ
 #define IFNAMSIZ 16
+#endif
+
+#ifndef ETH_ALEN
+#define ETH_ALEN 6
 #endif
 
 struct rmnet_ioctl_extended_s {
@@ -126,6 +133,19 @@ struct rmnet_ioctl_extended_s {
 			uint32_t agg_size;
 			uint32_t agg_count;
 		} ingress_format;
+
+		struct {
+			unsigned char   mac_addr[ETH_ALEN];
+		} eth_bridge_ep;
+
+		/* This eth address is needed for bridge to do L2 forward
+		 * instead of L3. This mimic's a eth interface on Modem side
+		 */
+		struct {
+			unsigned char   mac_addr[ETH_ALEN];
+		} dummy_eth_neigh;
+
+		uint8_t enable_rmnet_as_ethernet;
 	} u;
 };
 

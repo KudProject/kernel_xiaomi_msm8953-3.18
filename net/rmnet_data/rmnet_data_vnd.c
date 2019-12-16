@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/if_ether.h>
 #include <linux/rmnet_data.h>
 #include <linux/msm_rmnet.h>
 #include <linux/etherdevice.h>
@@ -62,6 +63,11 @@ struct rmnet_vnd_private_s {
 	rwlock_t flow_map_lock;
 	struct list_head flow_head;
 	struct rmnet_map_flow_mapping_s root_flow;
+	unsigned char eth_bridge_ep_addr[ETH_ALEN];
+	/* dummy mac is used, for the bridge to do L2 Forward instead of L3 */
+	/* if rmnet_data eth mac address is used by LAN client as dest for */
+	/* WAN communication, bridge does a L3 forward, this help L2 forward */
+	unsigned char dummy_eth_neigh_mac[ETH_ALEN];
 };
 
 #define RMNET_VND_FC_QUEUED      0
@@ -379,6 +385,55 @@ static int rmnet_vnd_ioctl_extended(struct net_device *dev, struct ifreq *ifr)
 		}
 		break;
 
+	case RMNET_IOCTL_SET_ETH_BRIDGE_EP:
+		if (is_valid_ether_addr(ext_cmd.u.eth_bridge_ep.mac_addr)) {
+			memcpy(dev_conf->eth_bridge_ep_addr,
+			       ext_cmd.u.eth_bridge_ep.mac_addr,
+			       ETH_ALEN);
+			LOGM("%s() bridge ep set to %pM\n", __func__,
+			     dev_conf->eth_bridge_ep_addr);
+		} else {
+			/* Zero/multicast address are not valid */
+			rc = -EINVAL;
+			LOGM("%s(): Invalid MAC address passed\n", __func__);
+			goto done;
+		}
+		break;
+
+	case RMNET_IOCTL_SET_DUMMY_NEIGH_MAC:
+		if (is_valid_ether_addr(ext_cmd.u.dummy_eth_neigh.mac_addr)) {
+			memcpy(dev_conf->dummy_eth_neigh_mac,
+			       ext_cmd.u.dummy_eth_neigh.mac_addr,
+			       ETH_ALEN);
+			LOGM("%s(): dummy mac set to %pM\n", __func__,
+			     dev_conf->dummy_eth_neigh_mac);
+		} else {
+			/* Zero/multicast address are not valid */
+			rc = -EINVAL;
+			LOGM("%s(): Invalid mac address passed\n", __func__);
+			goto done;
+		}
+		break;
+
+	case RMNET_IOCTL_SET_RMNET_AS_ETH:
+		if (ext_cmd.u.enable_rmnet_as_ethernet) {
+			dev->type = ARPHRD_ETHER;
+			/* Set promiscous mode on the device bridge attach */
+			dev->flags |= IFF_PROMISC;
+			dev->addr_assign_type = NET_ADDR_RANDOM;
+			eth_random_addr(dev->perm_addr);
+			dev->addr_len = ETH_ALEN;
+			LOGM("%s(): %s is now ethernet device\n", __func__,
+			     dev->name);
+		} else {
+			dev->type = ARPHRD_RAWIP;
+			dev->flags &= ~(IFF_PROMISC);
+			dev->addr_len = 0;
+			LOGM("%s(): %s is now RAWIP device\n", __func__,
+			     dev->name);
+		}
+		break;
+
 	default:
 		rc = -EINVAL;
 		goto done;
@@ -501,6 +556,7 @@ static void rmnet_vnd_setup(struct net_device *dev)
 	/* Flow control */
 	rwlock_init(&dev_conf->flow_map_lock);
 	INIT_LIST_HEAD(&dev_conf->flow_head);
+
 }
 
 /**
@@ -749,6 +805,50 @@ int rmnet_vnd_is_vnd(struct net_device *dev)
 			return i+1;
 
 	return 0;
+}
+
+/**
+ * rmnet_vnd_get_eth_bridge_ep_addr() - Get the ethernet endpoint address
+ * @dev:      Virtual device node
+ *
+ * Gets the ethernet endpoint address for a RmNet virtual network device
+ * node. Caller should confirm that devices is a RmNet VND before calling.
+ *
+ * Return:
+ *      - Pointer to ethernet endpoint address
+ *      - 0 (null) if dev is null
+ */
+const unsigned char *rmnet_vnd_get_eth_bridge_ep_addr(struct net_device *dev)
+{
+	struct rmnet_vnd_private_s *dev_conf;
+
+	BUG_ON(!dev);
+	BUG_ON(!(struct rmnet_vnd_private_s *)netdev_priv(dev));
+
+	dev_conf = (struct rmnet_vnd_private_s *)netdev_priv(dev);
+	return (const unsigned char *)dev_conf->eth_bridge_ep_addr;
+}
+
+/**
+ * rmnet_vnd_get_dummy_eth_neigh_mac() - Get the dummy neigh ethernet mac address
+ * @dev:      Virtual device node
+ *
+ * Gets the dummy ethernet mac address for a RmNet virtual network device
+ * node. This is required for bridge to do L2 Forward and not send packets via
+ * Local path. Caller should confirm that devices is a RmNet VND before calling.
+ *
+ * Return:
+ *      - Pointer to mac address
+ */
+const unsigned char *rmnet_vnd_get_dummy_eth_neigh_mac(struct net_device *dev)
+{
+	struct rmnet_vnd_private_s *dev_conf;
+
+	BUG_ON(!dev);
+	BUG_ON(!(struct rmnet_vnd_private_s *)netdev_priv(dev));
+
+	dev_conf = (struct rmnet_vnd_private_s *)netdev_priv(dev);
+	return (const unsigned char *)dev_conf->dummy_eth_neigh_mac;
 }
 
 /**

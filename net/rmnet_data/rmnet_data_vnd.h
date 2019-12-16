@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -37,5 +37,6 @@ int rmnet_vnd_del_tc_flow(uint32_t id, uint32_t map_flow, uint32_t tc_flow);
 int rmnet_vnd_init(void);
 void rmnet_vnd_exit(void);
 struct net_device *rmnet_vnd_get_by_id(int id);
-
+const unsigned char *rmnet_vnd_get_eth_bridge_ep_addr(struct net_device *dev);
+const unsigned char *rmnet_vnd_get_dummy_eth_neigh_mac(struct net_device *dev);
 #endif /* _RMNET_DATA_VND_H_ */
